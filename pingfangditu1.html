@@ -110,6 +110,7 @@
     <div class="modal" id="inputModal">
         <div class="modal-content">
             <h3>房屋信息录入</h3>
+            <p style="color:#666;">请移动地图选择位置后填写信息</p>
             <div class="form-group">
                 <input type="text" class="form-input" id="houseName" placeholder="户主姓名" required>
             </div>
@@ -152,12 +153,19 @@
         let map, geolocation;
         let houseData = JSON.parse(localStorage.getItem('houseData') || '[]');
         let currentPosition = null;
+        let tempMarker = null;
 
         // 地图初始化
         function initMap() {
             map = new AMap.Map('mapContainer', {
                 zoom: 17,
-                center: [126.5873, 43.8379]
+                center: [126.5873, 43.8379],
+                dragEnable: true
+            });
+
+            // 地图拖动事件监听
+            map.on('movend', () => {
+                updateCurrentPosition(map.getCenter());
             });
 
             AMap.plugin(['AMap.Geolocation'], () => {
@@ -168,22 +176,28 @@
                 map.addControl(geolocation);
             });
 
-            // 地图点击事件
-            map.on('click', (e) => {
-                currentPosition = e.lnglat;
-                updateMarker(e.lnglat);
-            });
-
             updateMarkers();
+        }
+
+        // 更新当前位置
+        function updateCurrentPosition(lnglat) {
+            currentPosition = lnglat;
+            if(tempMarker) map.remove(tempMarker);
+            
+            tempMarker = new AMap.Marker({
+                position: lnglat,
+                content: '<div style="background:var(--primary);color:white;padding:8px;border-radius:50%">📍</div>',
+                offset: new AMap.Pixel(-15, -15)
+            });
+            tempMarker.setMap(map);
         }
 
         // 定位功能
         function locateUser() {
             geolocation.getCurrentPosition((status, result) => {
                 if (status === 'complete') {
-                    currentPosition = result.position;
                     map.setCenter(result.position);
-                    updateMarker(result.position);
+                    updateCurrentPosition(result.position);
                 }
             });
         }
@@ -191,7 +205,6 @@
         // 表单控制
         function showForm() {
             document.getElementById('inputModal').style.display = 'block';
-            locateUser();
         }
 
         function hideForm() {
@@ -200,6 +213,11 @@
 
         // 数据保存
         function saveData() {
+            if (!currentPosition) {
+                alert('请移动地图选择位置');
+                return;
+            }
+
             const newEntry = {
                 id: Date.now(),
                 name: document.getElementById('houseName').value,
@@ -226,16 +244,8 @@
         }
 
         // 地图标记
-        function updateMarker(position) {
-            map.clearMap();
-            new AMap.Marker({
-                position: position,
-                content: '<div style="background:var(--primary);color:white;padding:8px;border-radius:50%">📍</div>'
-            }).setMap(map);
-            updateMarkers();
-        }
-
         function updateMarkers() {
+            map.clearMap();
             houseData.forEach(item => {
                 const marker = new AMap.Marker({
                     position: item.lnglat,
