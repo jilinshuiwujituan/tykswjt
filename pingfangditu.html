@@ -1,0 +1,243 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>中部盲肠区平房管理系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.4.4/css/tabulator_mobile.min.css">
+    <style>
+        :root {
+            --primary: #1890ff;
+            --secondary: #52c41a;
+            --danger: #ff4d4f;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+
+        #mapContainer {
+            width: 100%;
+            height: 60vh;
+            position: relative;
+        }
+
+        .control-bar {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            padding: 10px;
+            background: white;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+        }
+
+        .mobile-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 75vh;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin: 12px 0;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .location-info {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+    <script>
+        window._AMapSecurityConfig = {
+            securityJsCode: '6dc8e1105738b3c7f8a200f1ab73efb5'
+        };
+    </script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=81af62ba5eb2df43dce2f2e564caa0ae"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.4.4/js/tabulator.min.js"></script>
+</head>
+<body>
+    <div id="mapContainer"></div>
+    <div class="control-bar">
+        <button class="mobile-btn" onclick="showForm()">📝 新建</button>
+        <button class="mobile-btn secondary" onclick="toggleAutoLocation()">📍 定位</button>
+        <button class="mobile-btn secondary" onclick="showData()">📋 数据</button>
+    </div>
+
+    <!-- 输入表单 -->
+    <div class="modal" id="inputModal">
+        <div class="modal-content">
+            <h3>房屋信息录入</h3>
+            <div class="form-group">
+                <input type="text" class="form-input" id="houseName" placeholder="户主姓名" required>
+            </div>
+            <div class="form-group">
+                <input type="text" class="form-input" id="houseNumber" placeholder="户号" required>
+            </div>
+            <div class="form-group">
+                <input type="text" class="form-input" id="houseAddress" placeholder="详细地址" required>
+            </div>
+            <div class="form-group">
+                <input type="tel" class="form-input" id="housePhone" placeholder="联系电话">
+            </div>
+            <div class="location-info">
+                <div>当前定位：</div>
+                <div id="currentLocation">正在获取位置...</div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="mobile-btn" onclick="saveData()">保存</button>
+                <button class="mobile-btn danger" onclick="hideForm()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据管理 -->
+    <div class="modal" id="dataModal">
+        <div class="modal-content">
+            <h3>数据管理</h3>
+            <button class="mobile-btn secondary" onclick="exportExcel()">导出Excel</button>
+            <label class="mobile-btn secondary">
+                导入Excel
+                <input type="file" id="fileInput" hidden accept=".xlsx">
+            </label>
+            <div id="dataTable" style="height:55vh; margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <script>
+        let map, geolocation, currentMarker;
+        let houseData = JSON.parse(localStorage.getItem('houseData') || '[]');
+
+        // 初始化地图
+        function initMap() {
+            map = new AMap.Map('mapContainer', {
+                zoom: 17,
+                doubleClickZoom: false
+            });
+
+            AMap.plugin(['AMap.Geolocation'], () => {
+                geolocation = new AMap.Geolocation({
+                    showButton: false,
+                    zoomToAccuracy: true
+                });
+                map.addControl(geolocation);
+            });
+
+            updateMarkers();
+        }
+
+        // 自动定位
+        function toggleAutoLocation() {
+            geolocation.getCurrentPosition((status, result) => {
+                if (status === 'complete') {
+                    map.setCenter([result.position.lng, result.position.lat]);
+                    updateLocationDisplay(result.position);
+                }
+            });
+        }
+
+        // 数据保存
+        function saveData() {
+            const newEntry = {
+                id: Date.now(),
+                name: document.getElementById('houseName').value,
+                number: document.getElementById('houseNumber').value,
+                address: document.getElementById('houseAddress').value,
+                phone: document.getElementById('housePhone').value,
+                lnglat: currentPosition
+            };
+
+            houseData.push(newEntry);
+            localStorage.setItem('houseData', JSON.stringify(houseData));
+            updateMarkers();
+            hideForm();
+        }
+
+        // 表格管理
+        const dataTable = new Tabulator("#dataTable", {
+            data: houseData,
+            layout: "fitColumns",
+            columns: [
+                {title:"户号", field:"number", width:100},
+                {title:"姓名", field:"name", width:120},
+                {title:"地址", field:"address", widthGrow:2},
+                {
+                    title:"操作",
+                    formatter:() => '<button class="mobile-btn">🗑️</button>',
+                    cellClick:(e, cell) => deleteEntry(cell.getData().id)
+                }
+            ]
+        });
+
+        // 文件处理
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const workbook = XLSX.read(e.target.result, {type: 'array'});
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                houseData = json;
+                localStorage.setItem('houseData', JSON.stringify(houseData));
+                updateMarkers();
+                dataTable.replaceData(houseData);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function exportExcel() {
+            dataTable.download("xlsx", "房屋数据.xlsx", {sheetName: "数据"});
+        }
+
+        // 初始化
+        window.onload = initMap;
+    </script>
+</body>
+</html>
