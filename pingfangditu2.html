@@ -343,15 +343,15 @@
                 
                 houseData = json.map(item => ({
                     id: item.id || Date.now(),
-                    name: item.name,
-                    number: item.number,
-                    phone: item.phone,
-                    address: item.address,
-                    isOccupied: item.isOccupied === '是' ? 1 : 0,
-                    hasWater: item.hasWater === '是' ? 1 : 0,
+                    name: item.户名,
+                    number: item.户号,
+                    phone: item.电话,
+                    address: item.地址,
+                    isOccupied: item.居住状态 === '是' ? 1 : 0,
+                    hasWater: item.供水状态 === '是' ? 1 : 0,
                     lnglat: new AMap.LngLat(
-                        parseFloat(item.lng),
-                        parseFloat(item.lat)
+                        parseFloat(item.经度),
+                        parseFloat(item.纬度)
                     )
                 }));
                 
@@ -373,7 +373,7 @@
             }));
         }
 
-        // 表格配置
+        // 表格配置（包含删除键）
         const dataTable = new Tabulator("#dataTable", {
             columns: [
                 {title:"户号", field:"number", width:100},
@@ -406,17 +406,17 @@
             responsiveLayout: "hide"
         });
 
-        // 导出功能
+        // 导出功能（中文表头）
         function exportExcel() {
             const exportData = houseData.map(item => ({
-                number: item.number,
-                name: item.name,
-                phone: item.phone,
-                address: item.address,
-                isOccupied: item.isOccupied ? '是' : '否',
-                hasWater: item.hasWater ? '是' : '否',
-                lng: item.lnglat.lng,
-                lat: item.lnglat.lat
+                "户号": item.number,
+                "户名": item.name,
+                "电话": item.phone,
+                "地址": item.address,
+                "居住状态": item.isOccupied ? '是' : '否',
+                "供水状态": item.hasWater ? '是' : '否',
+                "经度": item.lnglat.lng,
+                "纬度": item.lnglat.lat
             }));
 
             const worksheet = XLSX.utils.json_to_sheet(exportData);
