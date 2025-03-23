@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>中部平面房屋管理系统</title>
+    <title>中部房屋平面管理系统</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.4.4/css/tabulator_mobile.min.css">
     <style>
-        /* 样式保持与之前相同 */
         :root {
             --primary: #1890ff;
             --secondary: #52c41a;
@@ -83,6 +82,18 @@
             font-size: 16px;
         }
 
+        .radio-group {
+            display: flex;
+            gap: 15px;
+            margin: 8px 0;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
         .info-window {
             padding: 12px;
             min-width: 200px;
@@ -124,6 +135,31 @@
             <div class="form-group">
                 <input type="text" class="form-input" id="houseAddress" placeholder="详细地址" required>
             </div>
+            
+            <div class="form-group">
+                <label>是否有人居住：</label>
+                <div class="radio-group">
+                    <label class="radio-item">
+                        <input type="radio" name="isOccupied" value="1" required> 是
+                    </label>
+                    <label class="radio-item">
+                        <input type="radio" name="isOccupied" value="0"> 否
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>是否有供水：</label>
+                <div class="radio-group">
+                    <label class="radio-item">
+                        <input type="radio" name="hasWater" value="1" required> 是
+                    </label>
+                    <label class="radio-item">
+                        <input type="radio" name="hasWater" value="0"> 否
+                    </label>
+                </div>
+            </div>
+
             <div style="display: flex; gap:10px; margin-top:20px;">
                 <button class="mobile-btn" onclick="saveData()">保存</button>
                 <button class="mobile-btn danger" onclick="hideForm()">取消</button>
@@ -164,10 +200,8 @@
                 dragEnable: true
             });
 
-            // 地图拖动事件监听
             map.on('movend', handleMapMove);
             
-            // 初始化定位组件
             AMap.plugin(['AMap.Geolocation'], () => {
                 geolocation = new AMap.Geolocation({
                     showButton: false,
@@ -179,7 +213,7 @@
             updateMarkers();
         }
 
-        // 处理地图移动
+        // 地图移动处理
         function handleMapMove() {
             const center = map.getCenter();
             updateTempMarker(center);
@@ -214,10 +248,12 @@
             currentPosition = map.getCenter();
             updateTempMarker(currentPosition);
             
+            // 清空表单
             document.getElementById('houseName').value = '';
             document.getElementById('houseNumber').value = '';
             document.getElementById('housePhone').value = '';
             document.getElementById('houseAddress').value = '';
+            document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
             
             document.getElementById('inputModal').style.display = 'block';
         }
@@ -233,12 +269,18 @@
                 return;
             }
 
+            // 获取表单数据
+            const isOccupied = document.querySelector('input[name="isOccupied"]:checked')?.value || '0';
+            const hasWater = document.querySelector('input[name="hasWater"]:checked')?.value || '0';
+
             const newEntry = {
                 id: Date.now(),
                 name: document.getElementById('houseName').value,
                 number: document.getElementById('houseNumber').value,
                 phone: document.getElementById('housePhone').value,
                 address: document.getElementById('houseAddress').value,
+                isOccupied: parseInt(isOccupied),
+                hasWater: parseInt(hasWater),
                 lnglat: currentPosition
             };
 
@@ -247,6 +289,7 @@
             updateMarkers();
             hideForm();
             
+            // 清理临时状态
             map.remove(tempMarker);
             tempMarker = null;
             currentPosition = null;
@@ -268,6 +311,8 @@
                                     <p>户号：${item.number}</p>
                                     <p>电话：${item.phone || '无'}</p>
                                     <p>地址：${item.address}</p>
+                                    <p>居住状态：${item.isOccupied ? '有人居住' : '无人居住'}</p>
+                                    <p>供水状态：${item.hasWater ? '有供水' : '无供水'}</p>
                                     <p>经度：${item.lnglat.lng.toFixed(6)}</p>
                                     <p>纬度：${item.lnglat.lat.toFixed(6)}</p>
                                 </div>`
@@ -280,14 +325,14 @@
         // 数据管理
         function showData() {
             document.getElementById('dataModal').style.display = 'block';
-            dataTable.replaceData(houseData);
+            dataTable.replaceData(formatTableData(houseData));
         }
 
         function closeDataModal() {
             document.getElementById('dataModal').style.display = 'none';
         }
 
-        // 文件处理（修复导入导出坐标问题）
+        // 文件处理
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             const reader = new FileReader();
@@ -302,6 +347,8 @@
                     number: item.number,
                     phone: item.phone,
                     address: item.address,
+                    isOccupied: item.isOccupied === '是' ? 1 : 0,
+                    hasWater: item.hasWater === '是' ? 1 : 0,
                     lnglat: new AMap.LngLat(
                         parseFloat(item.lng),
                         parseFloat(item.lat)
@@ -310,10 +357,21 @@
                 
                 localStorage.setItem('houseData', JSON.stringify(houseData));
                 updateMarkers();
-                dataTable.replaceData(houseData);
+                dataTable.replaceData(formatTableData(houseData));
             };
             reader.readAsArrayBuffer(file);
         });
+
+        // 数据格式化（表格用）
+        function formatTableData(data) {
+            return data.map(item => ({
+                ...item,
+                lng: item.lnglat.lng,
+                lat: item.lnglat.lat,
+                isOccupied: item.isOccupied ? '有人' : '无人',
+                hasWater: item.hasWater ? '有' : '无'
+            }));
+        }
 
         // 表格配置
         const dataTable = new Tabulator("#dataTable", {
@@ -322,34 +380,41 @@
                 {title:"户名", field:"name", width:120},
                 {title:"电话", field:"phone", width:120},
                 {title:"地址", field:"address", widthGrow:2},
+                {title:"居住状态", field:"isOccupied", width:100},
+                {title:"供水状态", field:"hasWater", width:100},
                 {title:"经度", field:"lng", formatter: cell => cell.getValue().toFixed(6)},
                 {title:"纬度", field:"lat", formatter: cell => cell.getValue().toFixed(6)},
                 {
                     title:"操作",
-                    formatter:() => '<button class="mobile-btn">删除</button>',
+                    formatter:() => '<button class="mobile-btn" style="padding:6px 12px">🗑️ 删除</button>',
                     cellClick:(e, cell) => {
-                        houseData = houseData.filter(item => item.id !== cell.getData().id);
-                        localStorage.setItem('houseData', JSON.stringify(houseData));
-                        dataTable.replaceData(houseData);
-                        updateMarkers();
-                    }
+                        if(confirm("确定要删除这条记录吗？")) {
+                            const rowData = cell.getData();
+                            houseData = houseData.filter(item => item.id !== rowData.id);
+                            localStorage.setItem('houseData', JSON.stringify(houseData));
+                            dataTable.replaceData(formatTableData(houseData));
+                            updateMarkers();
+                            setTimeout(() => alert(`已删除：${rowData.number} - ${rowData.name}`), 100);
+                        }
+                    },
+                    width: 120,
+                    headerSort: false
                 }
             ],
-            data: houseData.map(item => ({
-                ...item,
-                lng: item.lnglat.lng,
-                lat: item.lnglat.lat
-            })),
-            layout: "fitColumns"
+            data: formatTableData(houseData),
+            layout: "fitColumns",
+            responsiveLayout: "hide"
         });
 
-        // 导出功能（修复坐标导出）
+        // 导出功能
         function exportExcel() {
             const exportData = houseData.map(item => ({
                 number: item.number,
                 name: item.name,
                 phone: item.phone,
                 address: item.address,
+                isOccupied: item.isOccupied ? '是' : '否',
+                hasWater: item.hasWater ? '是' : '否',
                 lng: item.lnglat.lng,
                 lat: item.lnglat.lat
             }));
