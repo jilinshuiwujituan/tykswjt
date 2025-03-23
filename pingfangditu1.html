@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>中部盲肠区平房管理系统</title>
+    <title>中部平面房屋管理系统</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.4.4/css/tabulator_mobile.min.css">
     <style>
+        /* 样式保持与之前相同 */
         :root {
             --primary: #1890ff;
             --secondary: #52c41a;
@@ -88,10 +89,9 @@
             font-size: 14px;
         }
     </style>
-    <!-- 高德地图安全配置 -->
     <script>
         window._AMapSecurityConfig = {
-            securityJsCode: '6dc8e1105738b3c7f8a200f1ab73efb5' // 替换为实际密钥
+            securityJsCode: '6dc8e1105738b3c7f8a200f1ab73efb5'
         };
     </script>
     <script src="https://webapi.amap.com/maps?v=2.0&key=81af62ba5eb2df43dce2f2e564caa0ae"></script>
@@ -99,17 +99,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.4.4/js/tabulator.min.js"></script>
 </head>
 <body>
-    <!-- 地图容器 -->
     <div id="mapContainer"></div>
     
-    <!-- 操作按钮栏 -->
     <div class="control-bar">
         <button class="mobile-btn" onclick="showForm()">📝 新建</button>
         <button class="mobile-btn secondary" onclick="locateUser()">📍 定位</button>
         <button class="mobile-btn secondary" onclick="showData()">📋 数据</button>
     </div>
 
-    <!-- 信息录入表单 -->
+    <!-- 输入表单 -->
     <div class="modal" id="inputModal">
         <div class="modal-content">
             <h3>房屋信息录入</h3>
@@ -133,7 +131,7 @@
         </div>
     </div>
 
-    <!-- 数据管理面板 -->
+    <!-- 数据管理 -->
     <div class="modal" id="dataModal">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
@@ -158,15 +156,15 @@
         let currentPosition = null;
         let tempMarker = null;
 
-        // 初始化地图
+        // 地图初始化
         function initMap() {
             map = new AMap.Map('mapContainer', {
                 zoom: 17,
-                center: [126.5873, 43.8379], // 昌邑区中心坐标
+                center: [126.5873, 43.8379],
                 dragEnable: true
             });
 
-            // 地图拖动结束事件
+            // 地图拖动事件监听
             map.on('movend', handleMapMove);
             
             // 初始化定位组件
@@ -181,7 +179,7 @@
             updateMarkers();
         }
 
-        // 地图拖动处理
+        // 处理地图移动
         function handleMapMove() {
             const center = map.getCenter();
             updateTempMarker(center);
@@ -190,14 +188,8 @@
         // 更新临时标记
         function updateTempMarker(lnglat) {
             currentPosition = lnglat;
+            if(tempMarker) map.remove(tempMarker);
             
-            // 清除旧标记
-            if(tempMarker) {
-                map.remove(tempMarker);
-                tempMarker = null;
-            }
-            
-            // 创建新标记
             tempMarker = new AMap.Marker({
                 position: lnglat,
                 content: '<div style="background:var(--primary);color:white;padding:8px;border-radius:50%">📍</div>',
@@ -206,7 +198,7 @@
             tempMarker.setMap(map);
         }
 
-        // 定位到当前位置
+        // 定位功能
         function locateUser() {
             geolocation.getCurrentPosition((status, result) => {
                 if (status === 'complete') {
@@ -216,17 +208,12 @@
             });
         }
 
-        // 显示表单（重置状态）
+        // 表单控制
         function showForm() {
-            // 清除旧数据
-            if(tempMarker) {
-                map.remove(tempMarker);
-                tempMarker = null;
-            }
+            if(tempMarker) map.remove(tempMarker);
             currentPosition = map.getCenter();
             updateTempMarker(currentPosition);
             
-            // 清空表单
             document.getElementById('houseName').value = '';
             document.getElementById('houseNumber').value = '';
             document.getElementById('housePhone').value = '';
@@ -235,12 +222,11 @@
             document.getElementById('inputModal').style.display = 'block';
         }
 
-        // 隐藏表单
         function hideForm() {
             document.getElementById('inputModal').style.display = 'none';
         }
 
-        // 保存数据
+        // 数据保存
         function saveData() {
             if (!currentPosition) {
                 alert('请移动地图选择位置');
@@ -261,7 +247,6 @@
             updateMarkers();
             hideForm();
             
-            // 清除临时状态
             map.remove(tempMarker);
             tempMarker = null;
             currentPosition = null;
@@ -283,6 +268,8 @@
                                     <p>户号：${item.number}</p>
                                     <p>电话：${item.phone || '无'}</p>
                                     <p>地址：${item.address}</p>
+                                    <p>经度：${item.lnglat.lng.toFixed(6)}</p>
+                                    <p>纬度：${item.lnglat.lat.toFixed(6)}</p>
                                 </div>`
                     }).open(map, marker.getPosition());
                 });
@@ -290,7 +277,7 @@
             });
         }
 
-        // 数据管理功能
+        // 数据管理
         function showData() {
             document.getElementById('dataModal').style.display = 'block';
             dataTable.replaceData(houseData);
@@ -300,17 +287,27 @@
             document.getElementById('dataModal').style.display = 'none';
         }
 
-        // 文件处理
+        // 文件处理（修复导入导出坐标问题）
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             const reader = new FileReader();
+            
             reader.onload = function(e) {
                 const workbook = XLSX.read(e.target.result, {type: 'array'});
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                
                 houseData = json.map(item => ({
-                    ...item,
-                    lnglat: new AMap.LngLat(item.lng, item.lat)
+                    id: item.id || Date.now(),
+                    name: item.name,
+                    number: item.number,
+                    phone: item.phone,
+                    address: item.address,
+                    lnglat: new AMap.LngLat(
+                        parseFloat(item.lng),
+                        parseFloat(item.lat)
+                    )
                 }));
+                
                 localStorage.setItem('houseData', JSON.stringify(houseData));
                 updateMarkers();
                 dataTable.replaceData(houseData);
@@ -318,13 +315,15 @@
             reader.readAsArrayBuffer(file);
         });
 
-        // 数据表格配置
+        // 表格配置
         const dataTable = new Tabulator("#dataTable", {
             columns: [
                 {title:"户号", field:"number", width:100},
                 {title:"户名", field:"name", width:120},
                 {title:"电话", field:"phone", width:120},
                 {title:"地址", field:"address", widthGrow:2},
+                {title:"经度", field:"lng", formatter: cell => cell.getValue().toFixed(6)},
+                {title:"纬度", field:"lat", formatter: cell => cell.getValue().toFixed(6)},
                 {
                     title:"操作",
                     formatter:() => '<button class="mobile-btn">删除</button>',
@@ -336,16 +335,29 @@
                     }
                 }
             ],
-            data: houseData,
+            data: houseData.map(item => ({
+                ...item,
+                lng: item.lnglat.lng,
+                lat: item.lnglat.lat
+            })),
             layout: "fitColumns"
         });
 
-        // 导出Excel
+        // 导出功能（修复坐标导出）
         function exportExcel() {
-            dataTable.download("xlsx", "房屋数据.xlsx", {
-                sheetName: "数据",
-                columns: ["number", "name", "phone", "address"]
-            });
+            const exportData = houseData.map(item => ({
+                number: item.number,
+                name: item.name,
+                phone: item.phone,
+                address: item.address,
+                lng: item.lnglat.lng,
+                lat: item.lnglat.lat
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "数据");
+            XLSX.writeFile(workbook, "房屋数据.xlsx");
         }
 
         // 启动系统
