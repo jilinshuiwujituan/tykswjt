@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>热力站点地图-带当前位置</title>
+    <style>
+        #mapContainer {
+            width: 100%;
+            height: 800px;
+        }
+        .info-title {
+            color: #FF4444;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        /* 新增定位按钮样式 */
+        .geo-btn {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            z-index: 999;
+            padding: 10px;
+            background: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,.3);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="csvFile" accept=".csv" />
+    <div id="mapContainer"></div>
+    <!-- 新增定位按钮 -->
+    <div class="geo-btn" onclick="getLocation()">📍 我的位置</div>
+
+    <script src="https://webapi.amap.com/maps?v=2.0&key=81af62ba5eb2df43dce2f2e564caa0ae"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <script>
+        var map = new AMap.Map('mapContainer', {
+            zoom: 12,
+            center: [126.55352, 43.85198] // 吉林市中心坐标
+        });
+
+        // 新增：定位相关变量
+        var geoMarker = null;  // 当前定位标记
+        var geoCircle = null;  // 定位精度圈
+
+        // 新增：获取位置函数
+        function getLocation() {
+            AMap.plugin('AMap.Geolocation', function() {
+                var geolocation = new AMap.Geolocation({
+                    enableHighAccuracy: true, // 高精度定位
+                    timeout: 10000
+                });
+                
+                geolocation.getCurrentPosition(function(status, result) {
+                    if (status === 'complete') {
+                        // 清除旧定位标记
+                        if(geoMarker) map.remove(geoMarker);
+                        if(geoCircle) map.remove(geoCircle);
+
+                        // 创建蓝色定位图标
+                        geoMarker = new AMap.Marker({
+                            position: [result.position.lng, result.position.lat],
+                            map: map,
+                            icon: new AMap.Icon({
+                                image: 'https://webapi.amap.com/theme/v1.3/markers/b/mark_bs.png',
+                                size: new AMap.Size(36, 36)
+                            })
+                        });
+
+                        // 添加精度范围圈
+                        geoCircle = new AMap.Circle({
+                            center: [result.position.lng, result.position.lat],
+                            radius: result.accuracy,
+                            strokeColor: "#0091ff",
+                            strokeOpacity: 0.3,
+                            strokeWeight: 1,
+                            fillColor: "#0091ff",
+                            fillOpacity: 0.15
+                        });
+                        geoCircle.setMap(map);
+
+                        // 居中显示
+                        map.setCenter([result.position.lng, result.position.lat]);
+                    } else {
+                        alert('无法获取位置，请检查定位权限设置');
+                    }
+                });
+            });
+        }
+
+        // 原有文件上传功能保持不变
+        document.getElementById('csvFile').addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            Papa.parse(file, {
+                header: true,
+                complete: function(results) {
+                    createMarkers(results.data);
+                }
+            });
+        });
+
+        function createMarkers(data) {
+            map.clearMap();
+            data.forEach(function(item) {
+                if (item.lng && item.lat) {
+                    var infoContent = `<div class="info-title">${item.name || '未命名点位'}</div>
+                        <div>地址：${item.address || '暂无'}</div>
+                        <div>电话：${item.phone || '暂无'}</div>
+                        <div>备注：${item.remark || '无'}</div>`;
+
+                    var marker = new AMap.Marker({
+                        position: new AMap.LngLat(
+                            parseFloat(item.lng),
+                            parseFloat(item.lat)
+                        ),
+                        map: map,
+                        icon: new AMap.Icon({
+                            image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png',
+                            size: new AMap.Size(36, 36)
+                        })
+                    });
+
+                    var infoWindow = new AMap.InfoWindow({
+                        content: infoContent,
+                        offset: new AMap.Pixel(0, -30)
+                    });
+
+                    marker.on('click', function() {
+                        infoWindow.open(map, marker.getPosition());
+                    });
+                }
+            });
+            map.setFitView();
+        }
+    </script>
+</body>
+</html>
